@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Plato - server/router.js</title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/es-analysis/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>server/router.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"  data-container="body"></i></a></h2>
+      <p class="stat">72.53</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC" data-container="body"></i></h2>
+      <p class="stat">143</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty" data-container="body"></i></a></h2>
+      <p class="stat">21.68</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs" data-container="body"></i></a></h2>
+      <p class="stat">1.39</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity" data-container="body"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC" data-container="body"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">const Router = require(&#039;koa-router&#039;)
+const KoaBody = require(&#039;koa-body&#039;)
+const KoaJwt = require(&#039;koa-jwt&#039;)
+
+const errors = require(&#039;../shared/errors&#039;)
+const documents = require(&#039;./controllers/documents&#039;)
+const frontend = require(&#039;./controllers/frontend&#039;)
+const users = require(&#039;./controllers/users&#039;)
+const students = require(&#039;./controllers/students&#039;)
+const subjects = require(&#039;./controllers/subjects&#039;)
+const auth = require(&#039;./controllers/auth&#039;)
+const solicitations = require(&#039;./controllers/solicitations&#039;)
+const pendencies = require(&#039;./controllers/pendencies&#039;)
+const defenses = require(&#039;./controllers/defenses&#039;)
+
+const router = new Router()
+const api = new Router({ prefix: &#039;/api&#039; })
+
+api.use(KoaJwt({ getToken, secret: &#039;my-secret&#039;, passthrough: true }))
+
+// Middlewares
+const bodyJson = KoaBody()
+const bodyMultipart = KoaBody({ multipart: true })
+
+// Authorization
+api.use([&#039;/users&#039;, &#039;/students&#039;], isLoggedIn, isAdmin)
+api.use([&#039;/defenses&#039;], isLoggedIn)
+
+// User Routes
+api.get(&#039;/users/&#039;, users.List)
+api.get(&#039;/users/:id&#039;, users.Show)
+api.post(&#039;/users/&#039;, bodyJson, users.Create)
+
+// Student Routes
+api.get(&#039;/students/email-changes&#039;, students.EmailChanges)
+api.get(&#039;/students/actives-mailing-list&#039;, students.ActiveMailList)
+api.get(&#039;/students/&#039;, students.List)
+api.get(&#039;/students/:id&#039;, students.Show)
+api.post(&#039;/students/from-csv&#039;, bodyMultipart, students.FromCsv)
+api.put(
+  &#039;/students/update-academic-highlight&#039;,
+  bodyJson,
+  students.UpdateAcademicHighlight
+)
+api.put(&#039;/students/:id&#039;, bodyJson, students.Update)
+
+// Documents Routes
+api.get(&#039;/students/:studentId/documents&#039;, documents.List)
+api.get(&#039;/students/:studentId/documents/:id&#039;, documents.Show)
+api.del(&#039;/students/:studentId/documents/:id&#039;, documents.Delete)
+api.get(&#039;/students/:studentId/documents/:id/view&#039;, documents.View)
+api.post(&#039;/students/update-mailing-list&#039;, bodyJson, students.UpdateMailingList)
+api.post(&#039;/students/:studentId/documents&#039;, bodyMultipart, documents.Upload)
+api.post(&#039;/students/from-csv&#039;, bodyMultipart, students.FromCsv)
+
+// Pendencies Routes
+api.get(&#039;/students/:studentId/pendencies/:id&#039;, pendencies.Show)
+api.get(&#039;/students/:studentId/pendencies/&#039;, pendencies.List)
+api.post(
+  &#039;/students/:studentId/pendencies/batch&#039;,
+  bodyJson,
+  pendencies.FromBatch
+)
+
+// Subjects Routes
+api.get(&#039;/subjects/&#039;, subjects.List)
+api.get(&#039;/subjects/:id&#039;, subjects.Show)
+api.post(&#039;/subjects/&#039;, bodyJson, subjects.Create)
+api.put(&#039;/subjects/:id&#039;, bodyJson, subjects.Update)
+api.del(&#039;/subjects/:id&#039;, subjects.Destroy)
+// Defenses Routes
+api.get(&#039;/defenses/&#039;, isAdmin, defenses.List)
+api.post(&#039;/defenses/&#039;, isTeacher, bodyJson, defenses.Create)
+api.put(&#039;/defenses/:id&#039;, isAdmin, bodyJson, defenses.Update)
+
+// Auth routes
+api.get(&#039;/auth&#039;, isLoggedIn, auth.Show)
+api.post(&#039;/auth&#039;, bodyJson, auth.Login)
+
+// Solicitation routes
+api.post(&#039;/solicitations/&#039;, bodyJson, solicitations.Create)
+
+// Not Found Routes
+api.all(&#039;/*&#039;, ctx =&gt; {
+  ctx.status = 404
+  ctx.body = { code: errors.NOT_FOUND }
+})
+
+// Connect API routes to main router
+router.use(api.routes())
+router.use(api.allowedMethods())
+
+// Frontend Fallback Route
+router.get(&#039;*&#039;, frontend.Render)
+
+module.exports = router
+
+function getToken(ctx) {
+  return ctx.request.query.token
+}
+
+function isLoggedIn(ctx, next) {
+  const hasUser = ctx.state.user
+  const hasToken = ctx.request.get(&#039;Authorization&#039;)
+
+  if (hasToken &amp;&amp; !hasUser) {
+    ctx.status = 400
+    ctx.body = {
+      code: errors.INVALID_TOKEN
+    }
+    return
+  }
+
+  if (!hasUser) {
+    ctx.status = 401
+    ctx.body = {
+      code: errors.UNAUTHORIZED
+    }
+    return
+  }
+
+  return next()
+}
+
+function isAdmin(ctx, next) {
+  return checkRole(ctx, next, &#039;admin&#039;)
+}
+
+function isTeacher(ctx, next) {
+  return checkRole(ctx, next, &#039;teacher&#039;)
+}
+
+function checkRole(ctx, next, role) {
+  const { user } = ctx.state.user
+
+  if (user.role !== role) {
+    ctx.status = 403
+    ctx.body = { code: errors.FORBIDDEN }
+    return
+  }
+
+  return next()
+}</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ cyclomatic }} <br>
+    Length : {{ halstead.length }} <br>
+    Difficulty : {{ halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

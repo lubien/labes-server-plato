@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Plato - server/utils.js</title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/es-analysis/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>server/utils.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"  data-container="body"></i></a></h2>
+      <p class="stat">72.32</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC" data-container="body"></i></h2>
+      <p class="stat">281</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty" data-container="body"></i></a></h2>
+      <p class="stat">27.59</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs" data-container="body"></i></a></h2>
+      <p class="stat">1.77</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity" data-container="body"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC" data-container="body"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">const path = require(&#039;path&#039;)
+const jwt = require(&#039;jsonwebtoken&#039;)
+const enums = require(&#039;../shared/enums&#039;)
+const { knex } = require(&#039;./db&#039;)
+const Student = require(&#039;./models/Student&#039;)
+const Documents = require(&#039;./models/Document&#039;)
+
+/**
+ * Given a CSV file with header make an Array of objects
+ *
+ * @param {string} str - CSV String
+ * @return {object[]} An object based on the CSV
+ *
+ * @example
+ *
+ *     const csv = `a,b,c
+ * 1,2,3`
+ *     parseCsv(csv) // [ { a: 1, b: 2, c: 3 } ]
+ */
+exports.parseCsv = function parseCsv(str) {
+  const lines = str.replace(&#039;\r\n&#039;, &#039;\n&#039;).split(&#039;\n&#039;)
+
+  if (!lines[lines.length - 1]) {
+    lines.splice(-1, 1)
+  }
+
+  const [head, ...items] = lines
+
+  const headerItens = head.split(&#039;,&#039;)
+  return items.map(item =&gt;
+    item.split(&#039;,&#039;).reduce((acc, value, i) =&gt; {
+      const prop = headerItens[i]
+      acc[prop] = value
+      return acc
+    }, {})
+  )
+}
+
+/**
+ * Convert an object from SIGAA&#039;s CSV (see parseCsv) into
+ * proper objects to insert in the table students.
+ *
+ * @param {object[]} data - Array of objects from SIGAA&#039;s CSV
+ * @return {object[]} Array of objects ready to insert in the database
+ *
+ * @example
+ *
+ *     const csv = `Matrícula,AnoIngresso,Nome,CPF,DataNascimento,NomeMae,Municipio,Curso,Status
+ * 201704940001,2017,FELIPE SOUZA FERREIRA,111.111.111-11,1/29/1995,VITORIA DIAS ROCHA,Belém,CIENCIA DA COMPUTACAO,ATIVO`
+ *     const data = parseCsv(csv)
+ *     digestSigaaData(data)
+ *     // [{
+ *     //   name: &#039;FELIPE SOUZA FERREIRA&#039;,
+ *     //   course: &#039;cbcc&#039;,
+ *     //   registrationNumber: &#039;201704940001&#039;,
+ *     //   isFit: false,
+ *     //   isConcluding: false,
+ *     //   isActive: true,
+ *     //   isForming: false,
+ *     //   isGraduating: false,
+ *     //   academicHighlight: false,
+ *     //   cancelled: false,
+ *     //   prescribed: false,
+ *     //   mailingListToAdd: &#039;active&#039;
+ *     // }]
+ */
+exports.digestSigaaData = function digestSigaaData(data) {
+  function getCourse(student) {
+    return student.Curso === &#039;CIENCIA DA COMPUTACAO&#039; ? &#039;cbcc&#039; : &#039;cbsi&#039;
+  }
+
+  function getName(student) {
+    return student.Nome
+  }
+
+  function getRegistrationNumber(student) {
+    return student[&#039;Matrícula&#039;]
+  }
+
+  function getFlags(student) {
+    const base = {
+      isFit: false,
+      isConcluding: false,
+      isActive: true,
+      isForming: false,
+      isGraduating: false,
+      academicHighlight: false,
+      cancelled: false,
+      prescribed: false,
+      mailingListToAdd: &#039;none&#039;
+    }
+
+    const translateStatus = {
+      FORMANDO: &#039;isForming&#039;,
+      // We have no evidence GRADUANDO is the real string (Issue #8)
+      GRADUANDO: &#039;isGraduating&#039;,
+      CONCLUÍDO: &#039;isConcluding&#039;,
+      CANCELADO: &#039;cancelled&#039;
+    }
+
+    const keyToOpen = translateStatus[student.Status]
+    if (keyToOpen) {
+      base[keyToOpen] = true
+    }
+
+    const inactive = base.isConcluding || base.cancelled
+    if (inactive) {
+      base.isActive = false
+    }
+
+    if (base.isConcluding) {
+      base.mailingListToAdd = &#039;concluding&#039;
+    }
+
+    if (base.isActive) {
+      base.mailingListToAdd = &#039;active&#039;
+    }
+
+    return base
+  }
+
+  return data.map(student =&gt; ({
+    name: getName(student),
+    course: getCourse(student),
+    registrationNumber: getRegistrationNumber(student),
+    ...getFlags(student)
+  }))
+}
+
+/**
+ * Batch upsert (insert new, update old) student data
+ *
+ * @param {object[]} data - Valid objects of student rows
+ * @return {Promise} Knex promise
+ *
+ * @example
+ *
+ *
+ *     const csv = `Matrícula,AnoIngresso,Nome,CPF,DataNascimento,NomeMae,Municipio,Curso,Status
+ * 201704940001,2017,FELIPE SOUZA FERREIRA,111.111.111-11,1/29/1995,VITORIA DIAS ROCHA,Belém,CIENCIA DA COMPUTACAO,ATIVO`
+ *     const data = parseCsv(csv)
+ *     const digested = digestSigaaData(data)
+ *     await batchUpdateStudents(digested)
+ */
+exports.batchUpdateStudents = function batchUpdateStudents(data) {
+  const registrationNumbers = data.map(
+    ({ registrationNumber }) =&gt; registrationNumber
+  )
+  return knex.transaction(async trx =&gt; {
+    const existingStudentsCollection = await Student.query(
+      &#039;where&#039;,
+      &#039;registrationNumber&#039;,
+      &#039;IN&#039;,
+      registrationNumbers
+    ).fetchAll({ transacting: trx })
+
+    const existingStudents = existingStudentsCollection.toJSON()
+
+    const existingRegistrationNumbers = new Set(
+      existingStudents.map(({ registrationNumber }) =&gt; registrationNumber)
+    )
+
+    return Promise.all(
+      data.map(student =&gt; {
+        // New student
+        if (!existingRegistrationNumbers.has(student.registrationNumber)) {
+          return new Student(student).save(null, { transacting: trx })
+        }
+
+        // Old student
+        const model = existingStudents.find(
+          ({ registrationNumber }) =&gt;
+            registrationNumber === student.registrationNumber
+        )
+        const { id } = model
+        const changedMailingList =
+          student.mailingListToAdd !== model.mailingList
+        const mailingListToAdd = changedMailingList
+          ? student.mailingListToAdd
+          : &#039;none&#039;
+        const mailingListToRemove = changedMailingList
+          ? model.mailingList
+          : model.mailingListToRemove
+        const payload = { ...student, mailingListToAdd, mailingListToRemove }
+        return Student.forge({ id }).save(payload, {
+          patch: true,
+          transacting: trx
+        })
+      })
+    )
+  })
+}
+/**
+ * Injects the pagination headers from Bookshelft to a Koa context
+ *
+ * @param   {Context} ctx - Koa context
+ * @param   {CollectionBase} collectionBase - Result from Bookshelf query
+ * @returns {void}
+ */
+exports.paginateContext = function paginateContext(ctx, collectionBase) {
+  const { pagination } = collectionBase
+  ctx.set(&#039;Pagination-Page&#039;, pagination.page)
+  ctx.set(&#039;Pagination-Page-Size&#039;, pagination.pageSize)
+  ctx.set(&#039;Pagination-Row-Count&#039;, pagination.rowCount)
+  ctx.set(&#039;Pagination-Page-Count&#039;, pagination.pageCount)
+  ctx.body = collectionBase.toJSON()
+}
+
+/**
+ * Separate arry in array of arrays (size = chunkSize)
+ *
+ * @param   {Array} xs - Elements
+ * @param   {number} chunkSize - Size of nested array
+ * @returns {Array}
+ * @example
+ *
+ *
+ *          const xs = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+ *          chunks(xs, 3)
+ *          // [[1, 2, 3], [4, 5, 6], [7, 8, 9], [10]]
+ */
+function chunks(xs, chunkSize) {
+  const length = Math.ceil(xs.length / chunkSize)
+
+  return Array.from({ length }, (_, i) =&gt;
+    xs.slice(i * chunkSize, i * chunkSize + chunkSize)
+  )
+}
+
+exports.chunks = chunks
+
+/*
+ * Generate JWT for user
+ * @param  {User} user - Bookshelf model
+ * @return {string} Token
+ *
+ * @example
+ *
+ *    const token = signToken(user)
+ *    // eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ */
+exports.signToken = function signToken(
+  user,
+  // 24 hours default exp
+  exp = Math.floor(Date.now() / 1000) + 60 * 60 * 24
+) {
+  return jwt.sign(
+    {
+      user,
+      exp
+    },
+    &#039;my-secret&#039;
+  )
+}
+
+/*
+ * Update Student isFit flag
+ * @param {Student} student - Bookshelf model
+ * @returns {Student} student - Bookshelf model
+ */
+exports.updateStudentFitness = async function updateStudentFitness(student) {
+  const docTypes = (await Documents.where({ studentId: student.id }).fetchAll())
+    .toJSON()
+    .map(entry =&gt; entry.type)
+  const studentIsFit =
+    !!student.get(&#039;cd&#039;) &amp;&amp; docTypes.includes(1) &amp;&amp; docTypes.includes(2)
+  if (!!student.get(&#039;isFit&#039;) !== studentIsFit) {
+    const newValue = studentIsFit ? 1 : 0
+    await student.save({ isFit: newValue })
+  }
+  return student
+}
+
+exports.fileName = function filename(dirStudents, studentFind, documentType) {
+  return path.join(
+    dirStudents,
+    `${studentFind.get(&#039;registrationNumber&#039;)}-${
+      enums.documents[documentType]
+    }.pdf`
+  )
+}</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ cyclomatic }} <br>
+    Length : {{ halstead.length }} <br>
+    Difficulty : {{ halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>
